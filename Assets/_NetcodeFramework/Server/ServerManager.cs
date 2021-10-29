@@ -17,7 +17,7 @@ namespace NetcodeFramework.Server {
         private static JobHandle updateJob;
         private static NetworkPipeline sequencedPipeline;
         private static NetworkPipeline reliablePipeline;
-    
+
         public static bool IsRunning => driver.IsCreated;
         public static int ConnectionCount => connections.Count;
 
@@ -104,15 +104,11 @@ namespace NetcodeFramework.Server {
         /// </summary>
         /// <param name="connection"></param>
         public static void Disconnect(NetworkConnection connection) {
-            mainThreadEventQueue.Enqueue(() => {
-                if (!connection.IsCreated) {
-                    return;
-                }
-                driver.Disconnect(connection);
-
-                // todo: check if disconnect gets called
-
-            });
+            if (Time.inFixedTimeStep) {
+                DisconnectInternal(connection);
+            } else {
+                mainThreadEventQueue.Enqueue(() => DisconnectInternal(connection));
+            }
         }
 
         /// <summary>
@@ -123,11 +119,11 @@ namespace NetcodeFramework.Server {
         /// <param name="writeMessageCallback"></param>
         /// <param name="sendMode"></param>
         public static void SendMessageTo(NetworkConnection connection, byte messageId, WriteMessageCallback writeMessageCallback, SendMode sendMode = SendMode.Default) {
-            mainThreadEventQueue.Enqueue(() => {
-                if (connection.IsCreated) {
-                    SendMessageInternal(connection, messageId, writeMessageCallback, sendMode);
-                }
-            });
+            if (Time.inFixedTimeStep) {
+                SendMessageInternal(connection, messageId, writeMessageCallback, sendMode);
+            } else {
+                mainThreadEventQueue.Enqueue(() => SendMessageInternal(connection, messageId, writeMessageCallback, sendMode));
+            }
         }
 
         /// <summary>
@@ -137,13 +133,15 @@ namespace NetcodeFramework.Server {
         /// <param name="writeMessageCallback"></param>
         /// <param name="sendMode"></param>
         public static void SendMessageToAll(byte messageId, WriteMessageCallback writeMessageCallback, SendMode sendMode = SendMode.Default) {
-            mainThreadEventQueue.Enqueue(() => {
+            if (Time.inFixedTimeStep) {
                 foreach (NetworkConnection connection in connections) {
-                    if (connection.IsCreated) {
-                        SendMessageInternal(connection, messageId, writeMessageCallback, sendMode);
-                    }
+                    SendMessageInternal(connection, messageId, writeMessageCallback, sendMode);
                 }
-            });
+            } else {
+                foreach (NetworkConnection connection in connections) {
+                    mainThreadEventQueue.Enqueue(() => SendMessageInternal(connection, messageId, writeMessageCallback, sendMode));
+                }
+            }
         }
 
         /// <summary>
@@ -155,19 +153,36 @@ namespace NetcodeFramework.Server {
         /// <param name="sendMode"></param>
         public static void SendMessageToFiltered(byte messageId, WriteMessageCallback writeMessageCallback, Func<NetworkConnection, bool> filter, SendMode sendMode = SendMode.Default) {
             mainThreadEventQueue.Enqueue(() => {
-                foreach (NetworkConnection connection in connections) {
-                    if (connection.IsCreated && filter(connection)) {
-                        SendMessageInternal(connection, messageId, writeMessageCallback, sendMode);
+                if (Time.inFixedTimeStep) {
+                    foreach (NetworkConnection connection in connections) {
+                        if (filter(connection)) {
+                            SendMessageInternal(connection, messageId, writeMessageCallback, sendMode);
+                        }
+                    }
+                } else {
+                    foreach (NetworkConnection connection in connections) {
+                        mainThreadEventQueue.Enqueue(() => {
+                            if (filter(connection)) {
+                                SendMessageInternal(connection, messageId, writeMessageCallback, sendMode);
+                            }
+                        });
                     }
                 }
             });
         }
 
         private static void SendMessageInternal(NetworkConnection connection, byte messageId, WriteMessageCallback writeMessageCallback, SendMode sendMode) {
-            if (driver.BeginSend(GetPipeline(sendMode), connection, out DataStreamWriter writer) == 0) {
+            if (connection.IsCreated && driver.BeginSend(GetPipeline(sendMode), connection, out DataStreamWriter writer) == 0) {
                 writer.WriteByte(messageId);
                 writeMessageCallback(ref writer);
                 driver.EndSend(writer);
+            }
+        }
+
+        private static void DisconnectInternal(NetworkConnection connection) {
+            if (connection.IsCreated && connections.Remove(connection)) {
+                driver.Disconnect(connection);
+                Debug.Log($"[Server] Connection { connection.GetHashCode() } has been disconnected!");
             }
         }
 
@@ -185,7 +200,12 @@ namespace NetcodeFramework.Server {
                 return;
             }
 
-            // Accept all incoming connections (todo: send to a pending queue for a password system)
+            // Process everything in the main thread queue
+            while (mainThreadEventQueue.Count > 0) {
+                mainThreadEventQueue.Dequeue()();
+            }
+
+            // Accept all incoming connections
             NetworkConnection connectionToAccept;
             while ((connectionToAccept = driver.Accept()) != default(NetworkConnection)) {
                 connections.Add(connectionToAccept);
@@ -221,11 +241,6 @@ namespace NetcodeFramework.Server {
         private static void AfterUpdate() {
             if (!IsRunning) {
                 return;
-            }
-
-            // Process everything in the main thread queue
-            while (mainThreadEventQueue.Count > 0) {
-                mainThreadEventQueue.Dequeue()();
             }
 
             // Schedule job
