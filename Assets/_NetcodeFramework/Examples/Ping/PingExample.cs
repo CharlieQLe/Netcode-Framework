@@ -14,9 +14,7 @@ namespace NetcodeFramework.Examples.Ping {
             Time.fixedDeltaTime = 1f / tickRate;
             ServerManager.RegisterMessage(PING_ID, (in NetworkConnection connection, ref DataStreamReader stream) => {
                 float time = stream.ReadFloat();
-                ServerManager.SendMessageTo(connection, PING_ID, (ref DataStreamWriter writer) => {
-                    writer.WriteFloat(time);
-                });
+                ServerManager.SendMessageTo(connection, PING_ID, (ref DataStreamWriter writer) => writer.WriteFloat(time));
             });
             ClientManager.RegisterMessage(PING_ID, (ref DataStreamReader stream) => {
                 float sendTime = stream.ReadFloat();
@@ -34,9 +32,7 @@ namespace NetcodeFramework.Examples.Ping {
 
         private void FixedUpdate() {
             if (ClientManager.ConnectionState == ConnectionState.Connected) {
-                ClientManager.SendMessage(PING_ID, (ref DataStreamWriter stream) => {
-                    stream.WriteFloat(Time.fixedTime);
-                }, SendMode.Default);
+                ClientManager.SendMessage(PING_ID, (ref DataStreamWriter stream) => stream.WriteFloat(Time.fixedTime), SendMode.Default);
             }
         }
     }
