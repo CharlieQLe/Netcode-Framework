@@ -27,10 +27,6 @@ namespace NetcodeFramework.Examples.Ping {
             ClientManager.Connect("127.0.0.1", 7777);
         }
 
-        private void OnDestroy() {
-            ServerManager.Stop();
-        }
-
         private void FixedUpdate() {
             if (ClientManager.ConnectionState == ConnectionState.Connected) {
                 ClientManager.SendMessage(PING_ID, (ref DataStreamWriter stream) => {
