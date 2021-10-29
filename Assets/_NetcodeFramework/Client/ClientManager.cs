@@ -62,6 +62,9 @@ namespace NetcodeFramework.Client {
 
             // Create the network driver
             driver = NetworkDriver.Create();
+            sequencedPipeline = driver.CreatePipeline(typeof(UnreliableSequencedPipelineStage));
+            reliablePipeline = driver.CreatePipeline(typeof(ReliableSequencedPipelineStage));
+            mainThreadEventQueue.Clear();
 
             // Connect to the endpoint
             connection = driver.Connect(endPoint);
