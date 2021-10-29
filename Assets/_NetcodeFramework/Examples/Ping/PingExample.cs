@@ -20,10 +20,10 @@ namespace NetcodeFramework.Examples.Ping {
             });
             ClientManager.RegisterMessage(PING_ID, (ref DataStreamReader stream) => {
                 float sendTime = stream.ReadFloat();
-                float receiveTime = Time.time;
-                float frametime = Time.fixedDeltaTime * 2 * 1000;
-                float rtt = (receiveTime - sendTime) * 1000;
-                Debug.Log($"RTT={(int)rtt}ms, RTT-FT={(int)(rtt-frametime)}ms, frametime={frametime}ms, sent at {(int)(sendTime * 1000)}ms, received at {(int)(receiveTime*1000)}ms");
+                float receiveTime = Time.fixedTime;
+                float frametime = Time.fixedDeltaTime * 2;
+                float rtt = receiveTime - sendTime;
+                Debug.Log($"RTT={(int)(rtt*1000)}ms, RTT-FT={(int)((rtt-frametime)*1000)}ms, frametime={frametime*1000}ms, sent at {(int)(sendTime * 1000)}ms, received at {(int)(receiveTime*1000)}ms");
             }); 
         }
 
@@ -35,7 +35,7 @@ namespace NetcodeFramework.Examples.Ping {
         private void FixedUpdate() {
             if (ClientManager.ConnectionState == ConnectionState.Connected) {
                 ClientManager.SendMessage(PING_ID, (ref DataStreamWriter stream) => {
-                    stream.WriteFloat(Time.time);
+                    stream.WriteFloat(Time.fixedTime);
                 }, SendMode.Default);
             }
         }
