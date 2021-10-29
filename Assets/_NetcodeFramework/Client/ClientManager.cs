@@ -98,15 +98,15 @@ namespace NetcodeFramework.Client {
         /// <param name="writeMessageCallback"></param>
         /// <param name="sendMode"></param>
         public static void SendMessage(byte messageId, WriteMessageCallback writeMessageCallback, SendMode sendMode = SendMode.Default) {
-            mainThreadEventQueue.Enqueue(() => {
-                if (ConnectionState == ConnectionState.Connected) {
-                    SendMessageInternal(messageId, writeMessageCallback, sendMode);
-                }
-            });
+            if (Time.inFixedTimeStep) {
+                SendMessageInternal(messageId, writeMessageCallback, sendMode);
+            } else {
+                mainThreadEventQueue.Enqueue(() => SendMessageInternal(messageId, writeMessageCallback, sendMode));
+            }
         }
 
         private static void SendMessageInternal(byte messageId, WriteMessageCallback writeMessageCallback, SendMode sendMode) {
-            if (driver.BeginSend(GetPipeline(sendMode), connection, out DataStreamWriter writer) == 0) {
+            if (ConnectionState == ConnectionState.Connected && driver.BeginSend(GetPipeline(sendMode), connection, out DataStreamWriter writer) == 0) {
                 writer.WriteByte(messageId);
                 writeMessageCallback(ref writer);
                 driver.EndSend(writer);
@@ -114,7 +114,6 @@ namespace NetcodeFramework.Client {
         }
 
         private static void DisconnectInternal() {
-            // Cleanup
             mainThreadEventQueue.Clear();
             connection = default;
             hasConnected = false;
@@ -132,6 +131,11 @@ namespace NetcodeFramework.Client {
             updateJob.Complete();
             if (ConnectionState == ConnectionState.Disconnected) {
                 return;
+            }
+
+            // Process everything in the main thread queue
+            while (mainThreadEventQueue.Count > 0) {
+                mainThreadEventQueue.Dequeue()();
             }
 
             // Process all of the events in the driver's buffer
@@ -167,11 +171,6 @@ namespace NetcodeFramework.Client {
         private static void AfterUpdate() {
             if (ConnectionState == ConnectionState.Disconnected) {
                 return;
-            }
-
-            // Process everything in the main thread queue
-            while (mainThreadEventQueue.Count > 0) {
-                mainThreadEventQueue.Dequeue()();
             }
 
             // Schedule job
