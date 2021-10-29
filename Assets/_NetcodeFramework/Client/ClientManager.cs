@@ -59,11 +59,6 @@ namespace NetcodeFramework.Client {
             if (ConnectionState != ConnectionState.Disconnected || !NetworkEndPoint.TryParse(ip, port, out NetworkEndPoint endPoint)) {
                 return;
             }
-
-            // Create the network driver
-            driver = NetworkDriver.Create();
-            sequencedPipeline = driver.CreatePipeline(typeof(UnreliableSequencedPipelineStage));
-            reliablePipeline = driver.CreatePipeline(typeof(ReliableSequencedPipelineStage));
             mainThreadEventQueue.Clear();
 
             // Connect to the endpoint
@@ -90,13 +85,8 @@ namespace NetcodeFramework.Client {
             // Immediately send the disconnect message
             driver.ScheduleFlushSend(default).Complete();
 
-            // Dispose the server
-            driver.Dispose();
-
             // Cleanup
-            mainThreadEventQueue.Clear();
-            connection = default;
-            hasConnected = false;
+            DisconnectInternal();
 
             Debug.Log("[Client] Successfully disconnected from the server!");
         }
@@ -121,6 +111,13 @@ namespace NetcodeFramework.Client {
                 writeMessageCallback(ref writer);
                 driver.EndSend(writer);
             }
+        }
+
+        private static void DisconnectInternal() {
+            // Cleanup
+            mainThreadEventQueue.Clear();
+            connection = default;
+            hasConnected = false;
         }
 
         private static NetworkPipeline GetPipeline(SendMode sendMode) {
@@ -159,9 +156,8 @@ namespace NetcodeFramework.Client {
 
                     // Process a connection's disconnection from the server
                     case NetworkEvent.Type.Disconnect: {
-                            connection = default;
-                            hasConnected = false;
                             Debug.Log($"[Client] Server has forced a disconnection! Reason: { (DisconnectReason)stream.ReadByte() }");
+                            DisconnectInternal();
                             break;
                         }
                 }
@@ -186,9 +182,13 @@ namespace NetcodeFramework.Client {
         private static void Initialize() {
             Application.quitting += () => {
                 Disconnect();
+                driver.Dispose();
                 NetcodeUtility.ResetSubsystems();
             };
-            NetcodeUtility.InjectSubsystems(typeof(ClientManager), BeforeUpdate, AfterUpdate);
+            NetcodeUtility.InjectSubsystems(typeof(ClientManager), BeforeUpdate, AfterUpdate); 
+            driver = NetworkDriver.Create();
+            sequencedPipeline = driver.CreatePipeline(typeof(UnreliableSequencedPipelineStage));
+            reliablePipeline = driver.CreatePipeline(typeof(ReliableSequencedPipelineStage));
         }
 
     }
