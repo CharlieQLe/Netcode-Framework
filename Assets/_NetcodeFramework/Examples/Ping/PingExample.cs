@@ -7,7 +7,11 @@ namespace NetcodeFramework.Examples.Ping {
     public class PingExample : MonoBehaviour {
         public const byte PING_ID = 1;
 
+        [Min(1)]
+        public int tickRate = 50;
+
         private void Awake() {
+            Time.fixedDeltaTime = 1f / tickRate;
             ServerManager.RegisterMessage(PING_ID, (in NetworkConnection connection, ref DataStreamReader stream) => {
                 float time = stream.ReadFloat();
                 ServerManager.SendMessageTo(connection, PING_ID, (ref DataStreamWriter writer) => {
@@ -17,8 +21,9 @@ namespace NetcodeFramework.Examples.Ping {
             ClientManager.RegisterMessage(PING_ID, (ref DataStreamReader stream) => {
                 float sendTime = stream.ReadFloat();
                 float receiveTime = Time.time;
-                int rtt = (int)((receiveTime - sendTime) * 1000);
-                Debug.Log($"RTT={rtt}ms, sent at {(int)(sendTime * 1000)}ms, received at {(int)(receiveTime*1000)}ms");
+                float frametime = Time.fixedDeltaTime * 2 * 1000;
+                float rtt = (receiveTime - sendTime) * 1000;
+                Debug.Log($"RTT={(int)rtt}ms, RTT-FT={(int)(rtt-frametime)}ms, frametime={frametime}ms, sent at {(int)(sendTime * 1000)}ms, received at {(int)(receiveTime*1000)}ms");
             }); 
         }
 
