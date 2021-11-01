@@ -21,8 +21,7 @@ namespace NetcodeFramework.Client {
         private static Dictionary<byte, ReceiveMessageCallback> messageCallbacks;
         private static Queue<Action> mainThreadEventQueue;
         private static JobHandle updateJob;
-        private static NetworkPipeline sequencedPipeline;
-        private static NetworkPipeline reliablePipeline;
+        private static NetcodePipeline pipeline;
         private static bool hasConnected;
         public static ConnectionState ConnectionState {
             get {
@@ -106,7 +105,7 @@ namespace NetcodeFramework.Client {
         }
 
         private static void SendMessageInternal(byte messageId, WriteMessageCallback writeMessageCallback, SendMode sendMode) {
-            if (ConnectionState == ConnectionState.Connected && driver.BeginSend(GetPipeline(sendMode), connection, out DataStreamWriter writer) == 0) {
+            if (ConnectionState == ConnectionState.Connected && driver.BeginSend(pipeline.GetPipeline(sendMode), connection, out DataStreamWriter writer) == 0) {
                 writer.WriteByte(messageId);
                 writeMessageCallback(ref writer);
                 driver.EndSend(writer);
@@ -117,14 +116,6 @@ namespace NetcodeFramework.Client {
             mainThreadEventQueue.Clear();
             connection = default;
             hasConnected = false;
-        }
-
-        private static NetworkPipeline GetPipeline(SendMode sendMode) {
-            switch (sendMode) {
-                case SendMode.Sequenced: return sequencedPipeline;
-                case SendMode.Reliable: return reliablePipeline;
-                default: return NetworkPipeline.Null;
-            }
         }
 
         private static void BeforeUpdate() {
@@ -186,8 +177,7 @@ namespace NetcodeFramework.Client {
             };
             NetcodeUtility.InjectSubsystems(typeof(ClientManager), BeforeUpdate, AfterUpdate); 
             driver = NetworkDriver.Create();
-            sequencedPipeline = driver.CreatePipeline(typeof(UnreliableSequencedPipelineStage));
-            reliablePipeline = driver.CreatePipeline(typeof(ReliableSequencedPipelineStage));
+            pipeline = new NetcodePipeline(driver);
         }
 
     }

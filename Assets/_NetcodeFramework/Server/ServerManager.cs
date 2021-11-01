@@ -15,8 +15,7 @@ namespace NetcodeFramework.Server {
         private static Dictionary<byte, ReceiveMessageCallback> messageCallbacks;
         private static Queue<Action> mainThreadEventQueue;
         private static JobHandle updateJob;
-        private static NetworkPipeline sequencedPipeline;
-        private static NetworkPipeline reliablePipeline;
+        private static NetcodePipeline pipeline;
 
         public static bool IsRunning => driver.IsCreated;
         public static int ConnectionCount => connections.Count;
@@ -65,8 +64,7 @@ namespace NetcodeFramework.Server {
                 driver.Dispose();
             } else {
                 Debug.Log($"[Server] Successfully started server on port { port }!");
-                sequencedPipeline = driver.CreatePipeline(typeof(UnreliableSequencedPipelineStage));
-                reliablePipeline = driver.CreatePipeline(typeof(ReliableSequencedPipelineStage));
+                pipeline = new NetcodePipeline(driver);
                 mainThreadEventQueue.Clear();
             }
         }
@@ -172,7 +170,7 @@ namespace NetcodeFramework.Server {
         }
 
         private static void SendMessageInternal(NetworkConnection connection, byte messageId, WriteMessageCallback writeMessageCallback, SendMode sendMode) {
-            if (connection.IsCreated && driver.BeginSend(GetPipeline(sendMode), connection, out DataStreamWriter writer) == 0) {
+            if (connection.IsCreated && driver.BeginSend(pipeline.GetPipeline(sendMode), connection, out DataStreamWriter writer) == 0) {
                 writer.WriteByte(messageId);
                 writeMessageCallback(ref writer);
                 driver.EndSend(writer);
@@ -183,14 +181,6 @@ namespace NetcodeFramework.Server {
             if (connection.IsCreated && connections.Remove(connection)) {
                 driver.Disconnect(connection);
                 Debug.Log($"[Server] Connection { connection.GetHashCode() } has been disconnected!");
-            }
-        }
-
-        private static NetworkPipeline GetPipeline(SendMode sendMode) {
-            switch (sendMode) {
-                case SendMode.Sequenced: return sequencedPipeline;
-                case SendMode.Reliable: return reliablePipeline;
-                default: return NetworkPipeline.Null;
             }
         }
 
