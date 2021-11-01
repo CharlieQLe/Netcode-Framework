@@ -184,7 +184,7 @@ namespace NetcodeFramework.Server {
             }
         }
 
-        private static void BeforeUpdate() {
+        private static void BeginUpdate() {
             updateJob.Complete();
             if (!IsRunning) {
                 return;
@@ -228,7 +228,7 @@ namespace NetcodeFramework.Server {
             }
         }
 
-        private static void AfterUpdate() {
+        private static void EndUpdate() {
             if (!IsRunning) {
                 return;
             }
@@ -243,7 +243,7 @@ namespace NetcodeFramework.Server {
                 Stop();
                 NetcodeUtility.ResetSubsystems();
             };
-            NetcodeUtility.InjectSubsystems(typeof(ServerManager), BeforeUpdate, AfterUpdate);
+            NetcodeUtility.InjectSubsystems(typeof(ServerManager), BeginUpdate, EndUpdate);
         }
 
     }

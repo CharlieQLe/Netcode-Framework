@@ -118,7 +118,7 @@ namespace NetcodeFramework.Client {
             hasConnected = false;
         }
 
-        private static void BeforeUpdate() {
+        private static void BeginUpdate() {
             updateJob.Complete();
             if (ConnectionState == ConnectionState.Disconnected) {
                 return;
@@ -159,7 +159,7 @@ namespace NetcodeFramework.Client {
             }
         }
 
-        private static void AfterUpdate() {
+        private static void EndUpdate() {
             if (ConnectionState == ConnectionState.Disconnected) {
                 return;
             }
@@ -175,7 +175,7 @@ namespace NetcodeFramework.Client {
                 driver.Dispose();
                 NetcodeUtility.ResetSubsystems();
             };
-            NetcodeUtility.InjectSubsystems(typeof(ClientManager), BeforeUpdate, AfterUpdate); 
+            NetcodeUtility.InjectSubsystems(typeof(ClientManager), BeginUpdate, EndUpdate); 
             driver = NetworkDriver.Create();
             pipeline = new NetcodePipeline(driver);
         }
